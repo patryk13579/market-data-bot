@@ -2,43 +2,66 @@ name: SPX GEX collector
 
 on:
   workflow_dispatch:
-  # schedule dodamy później
+  schedule:
+    # Pokrywamy 15:00/15:30/15:50 Europe/Warsaw dla obu stref (CET/CEST)
+    - cron: '00 13 * * 1-5'  # 15:00 w lecie
+    - cron: '30 13 * * 1-5'  # 15:30 w lecie
+    - cron: '50 13 * * 1-5'  # 15:50 w lecie
+    - cron: '00 14 * * 1-5'  # 15:00 w zimie
+    - cron: '30 14 * * 1-5'  # 15:30 w zimie
+    - cron: '50 14 * * 1-5'  # 15:50 w zimie
+
+permissions:
+  contents: write
+
+concurrency:
+  group: spx-gex
+  cancel-in-progress: true
 
 jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install deps
+      - name: Guard — run only at 15:00/15:30/15:50 Europe/Warsaw
         run: |
-          python -V
-          which python
+          NOW=$(TZ=Europe/Warsaw date +'%H:%M')
+          echo "Europe/Warsaw time is $NOW"
+          if [[ "$NOW" != "15:00" && "$NOW" != "15:30" && "$NOW" != "15:50" ]]; then
+            echo "Not target time, exiting gracefully."
+            exit 0
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps (Playwright + Chromium)
+        run: |
           python -m pip install --upgrade pip
-          # zainstaluj wymagania z repo (już bez złej wersji)
-          if [ -f requirements.txt ]; then python -m pip install -r requirements.txt; fi
-          # na wszelki wypadek doinstaluj playwright (gdyby nie było w requirements)
-          python -m pip install playwright
-          # przeglądarka + zależności systemowe
+          pip install playwright
           python -m playwright install --with-deps chromium
 
       - name: Run collector
         env:
           GFLOW_URL: https://gflows.up.railway.app
         run: |
-          # podmień ścieżkę, jeśli masz inny plik
           python spx_gex_only.py
 
-      - name: Upload CSV
-        if: always()
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: spx_gex
-          path: data/*.csv
-          if-no-files-found: ignore
+          path: data/spx_gex.csv
+          retention-days: 30
+
+      - name: Commit & push CSV to repo
+        run: |
+          if [ -f data/spx_gex.csv ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add data/spx_gex.csv
+            git commit -m "Update spx_gex.csv ($(date -u +'%Y-%m-%d %H:%M UTC'))" || echo "No changes to commit"
+            git push
+          fi
