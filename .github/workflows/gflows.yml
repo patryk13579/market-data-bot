@@ -1,25 +1,11 @@
 name: SPX GEX collector
 
 on:
-  schedule:
-    # GitHub używa UTC — te cztery crony pokrywają 15:30 i 15:50 w PL
-    # (CET=UTC+1 zimą, CEST=UTC+2 latem)
-    - cron: '30 13 * * 1-5'  # 15:30 CEST (mar–paź)
-    - cron: '50 13 * * 1-5'  # 15:50 CEST
-    - cron: '30 14 * * 1-5'  # 15:30 CET (lis–lut)
-    - cron: '50 14 * * 1-5'  # 15:50 CET
-  workflow_dispatch: {}       # ręczne odpalenie z zakładki Actions
-
-permissions:
-  contents: write             # potrzebne, by commitować CSV do repo
+  workflow_dispatch:
 
 jobs:
   run:
     runs-on: ubuntu-latest
-    env:
-      HEADLESS: "true"
-      BROWSER: "chromium"
-      GFLOW_URL: "https://gflows.up.railway.app"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,27 +13,17 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.10"
 
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          pip install playwright
-          # instalacja przeglądarki i bibliotek systemowych
-          python -m playwright install chromium
-          sudo python -m playwright install-deps chromium
+          pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
 
-      - name: Run script
-        run: python cme_gex_collector.py
-
-      - name: Commit CSV if changed
+      - name: Run collector
+        env:
+          GFLOW_URL: https://gflows.up.railway.app
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if [ -n "$(git status --porcelain data/spx_gex.csv || true)" ]; then
-            git add data/spx_gex.csv
-            git commit -m "Update SPX GEX $(date -u +'%Y-%m-%d %H:%M:%S')"
-            git push
-          else
-            echo "No CSV changes to commit."
-          fi
+          python scripts/spx_gex_only.py
+          # jeśli skrypt jest gdzie indziej, podmień ścieżkę
