@@ -33,7 +33,7 @@ jobs:
           GFLOW_URL: https://gflows.up.railway.app
         run: |
           # podmień ścieżkę, jeśli masz inny plik
-          python scripts/spx_gex_only.py
+          python spx_gex_only.py
 
       - name: Upload CSV
         if: always()
