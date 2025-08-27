@@ -2,7 +2,7 @@ name: SPX GEX collector
 
 on:
   workflow_dispatch:
-  # (opcjonalnie później dodasz schedule)
+  # schedule dodamy później
 
 jobs:
   run:
@@ -21,21 +21,20 @@ jobs:
           python -V
           which python
           python -m pip install --upgrade pip
-          # jeśli masz requirements.txt, zainstaluj z pliku:
-          python -m pip install -r requirements.txt || true
-          # i NA PEWNO doinstaluj playwright (gdyby nie było w requirements):
-          python -m pip install "playwright==1.47.2"
-          # teraz dopiero przeglądarka do Playwrighta:
+          # zainstaluj wymagania z repo (już bez złej wersji)
+          if [ -f requirements.txt ]; then python -m pip install -r requirements.txt; fi
+          # na wszelki wypadek doinstaluj playwright (gdyby nie było w requirements)
+          python -m pip install playwright
+          # przeglądarka + zależności systemowe
           python -m playwright install --with-deps chromium
 
       - name: Run collector
         env:
           GFLOW_URL: https://gflows.up.railway.app
         run: |
-          # PODMIEŃ ścieżkę do skryptu jeśli masz inną:
+          # podmień ścieżkę, jeśli masz inny plik
           python scripts/spx_gex_only.py
 
-      # (opcjonalnie) wyślij CSV jako artefakt
       - name: Upload CSV
         if: always()
         uses: actions/upload-artifact@v4
